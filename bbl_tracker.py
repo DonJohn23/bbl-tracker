@@ -5,15 +5,20 @@ import subprocess
 from flask import Flask, request, jsonify
 from pytube import YouTube
 from ultralytics import YOLO
+from ultralytics.nn.tasks import DetectionModel
+import torch
 import cv2
 import ffmpeg
+
+# Allow YOLO model class in PyTorch safe loader
+torch.serialization.add_safe_globals([DetectionModel])
 
 app = Flask(__name__)
 
 MODEL_PATH = "fullcourt.pt"
 FPS = 30
 
-# Load YOLO once on startup
+# Load YOLO model safely
 model = YOLO(MODEL_PATH)
 
 
