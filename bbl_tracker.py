@@ -6,12 +6,14 @@ from flask import Flask, request, jsonify
 from pytube import YouTube
 from ultralytics import YOLO
 from ultralytics.nn.tasks import DetectionModel
+from torch.nn.modules.container import Sequential
 import torch
 import cv2
 import ffmpeg
 
-# Allow YOLO model class in PyTorch safe loader
+# Allowlist YOLO model classes for PyTorch safe loading
 torch.serialization.add_safe_globals([DetectionModel])
+torch.serialization.add_safe_globals([Sequential])
 
 app = Flask(__name__)
 
@@ -20,6 +22,7 @@ FPS = 30
 
 # Load YOLO model safely
 model = YOLO(MODEL_PATH)
+
 
 
 def download_youtube(url):
