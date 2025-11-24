@@ -6,29 +6,46 @@ from flask import Flask, request, jsonify
 from pytube import YouTube
 from ultralytics import YOLO
 
-# YOLO classes required for safe loading
+# === Import ALL YOLO layers (needed for safe model loading) ===
 from ultralytics.nn.tasks import DetectionModel
-from ultralytics.nn.modules import Conv
+from ultralytics.nn.modules import (
+    Conv, C2f, C3, Bottleneck, SPPF, Detect, C2, C3Ghost, C3TR, C2f6
+)
 from torch.nn.modules.container import Sequential
 
 import torch
 import cv2
 import ffmpeg
 
-# Allowlist YOLO model classes for PyTorch safe loading
-torch.serialization.add_safe_globals([DetectionModel])
-torch.serialization.add_safe_globals([Sequential])
-torch.serialization.add_safe_globals([Conv])
 
+# === Allowlist all YOLO components so PyTorch can load fullcourt.pt ===
+torch.serialization.add_safe_globals([
+    DetectionModel,
+    Sequential,
+    Conv,
+    C2f,
+    C3,
+    Bottleneck,
+    SPPF,
+    Detect,
+    C2,
+    C3Ghost,
+    C3TR,
+    C2f6
+])
+
+
+# === App and model loading ===
 app = Flask(__name__)
 
 MODEL_PATH = "fullcourt.pt"
 FPS = 30
 
-# Load YOLO model safely
+# Load YOLO model (now allowed)
 model = YOLO(MODEL_PATH)
 
 
+# === Download YouTube video ===
 def download_youtube(url):
     yt = YouTube(url)
     stream = yt.streams.filter(file_extension='mp4').first()
@@ -37,6 +54,7 @@ def download_youtube(url):
     return temp_video.name
 
 
+# === Run ball tracking on the local video ===
 def extract_ball_positions(video_file):
     output_csv = tempfile.NamedTemporaryFile(delete=False, suffix=".csv").name
 
@@ -64,7 +82,6 @@ def extract_ball_positions(video_file):
             candidates = []
             if hasattr(res, "boxes") and res.boxes is not None:
                 for b in res.boxes:
-                    cls_id = int(b.cls[0])
                     x1, y1, x2, y2 = map(float, b.xyxy[0])
                     candidates.append({
                         "x1": x1, "y1": y1, "x2": x2, "y2": y2,
@@ -79,6 +96,7 @@ def extract_ball_positions(video_file):
             cx = (chosen["x1"] + chosen["x2"]) / 2
             cy = (chosen["y1"] + chosen["y2"]) / 2
 
+            # Smooth sudden jumps
             if last_x is not None:
                 if abs(cx - last_x) > 150 or abs(cy - last_y) > 150:
                     cx, cy = last_x, last_y
@@ -90,6 +108,7 @@ def extract_ball_positions(video_file):
     return output_csv
 
 
+# === API endpoint ===
 @app.route("/run", methods=["POST"])
 def run():
     data = request.json
@@ -107,10 +126,12 @@ def run():
     })
 
 
+# === Health check ===
 @app.route("/", methods=["GET"])
 def health():
     return jsonify({"status": "running"})
 
 
+# === Launch locally (Render will use Gunicorn instead) ===
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
