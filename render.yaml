@@ -2,6 +2,7 @@ services:
   - type: web
     name: bbl-tracker
     env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
     pythonVersion: 3.10.14
+    buildCommand: pip install --no-cache-dir -r requirements.txt
+    startCommand: gunicorn app:app
+    autodetectPoetry: false
