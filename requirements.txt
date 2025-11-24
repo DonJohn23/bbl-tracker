@@ -1,7 +1,9 @@
 ultralytics==8.1.0
+torch==2.2.2
+torchvision==0.17.2
 opencv-python-headless==4.8.1.78
 numpy==1.26.4
-pytube
-ffmpeg-python
-flask
-gunicorn
+pytube==15.0.0
+ffmpeg-python==0.2.0
+flask==3.1.0
+gunicorn==23.0.0
