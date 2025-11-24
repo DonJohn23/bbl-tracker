@@ -3,28 +3,41 @@ import csv
 import tempfile
 from flask import Flask, request, jsonify
 from pytube import YouTube
+
 import torch
 import cv2
 import ffmpeg
 
 from ultralytics import YOLO
+from ultralytics.nn.modules import Conv
 from ultralytics.nn.tasks import DetectionModel
+from torch.nn.modules.container import Sequential
 
-# ========================================
-# FORCE PYTORCH TO LOAD FULL MODEL
-# ========================================
+
+# ============================================
+# ALLOWLIST ALL YOLO MODULES (FINAL FIX)
+# ============================================
+
+torch.serialization.add_safe_globals([
+    DetectionModel,
+    Conv,
+    Sequential
+])
+
+# Also disable weights_only safety
+def unsafe_load(path):
+    return torch.load(path, map_location="cpu", weights_only=False)
+
+# Patch YOLO internal loader to use unsafe load
+torch.load = unsafe_load
+
+
+# ============================================
+# Load YOLO model normally (Render won’t block it now)
+# ============================================
 
 MODEL_PATH = "fullcourt.pt"
-
-# Load checkpoint manually
-ckpt = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
-
-# Build YOLO model from checkpoint's model args
-model = DetectionModel(ckpt["model"].yaml).load(ckpt["model"].state_dict())
-model.eval()
-
-# Wrap into YOLO class so track() still works
-model = YOLO(model)
+model = YOLO(MODEL_PATH)
 
 
 app = Flask(__name__)
