@@ -6,10 +6,10 @@ from flask import Flask, request, jsonify
 from pytube import YouTube
 from ultralytics import YOLO
 
-# === Import ALL YOLO layers (needed for safe model loading) ===
+# === Import YOLO layers (needed for safe model loading) ===
 from ultralytics.nn.tasks import DetectionModel
 from ultralytics.nn.modules import (
-    Conv, C2f, C3, Bottleneck, SPPF, Detect, C2, C3Ghost, C3TR, C2f6
+    Conv, C2f, C3, Bottleneck, SPPF, Detect, C2, C3Ghost, C3TR
 )
 from torch.nn.modules.container import Sequential
 
@@ -18,7 +18,7 @@ import cv2
 import ffmpeg
 
 
-# === Allowlist all YOLO components so PyTorch can load fullcourt.pt ===
+# === Allowlist YOLO components so PyTorch can load fullcourt.pt ===
 torch.serialization.add_safe_globals([
     DetectionModel,
     Sequential,
@@ -30,8 +30,7 @@ torch.serialization.add_safe_globals([
     Detect,
     C2,
     C3Ghost,
-    C3TR,
-    C2f6
+    C3TR
 ])
 
 
@@ -135,3 +134,4 @@ def health():
 # === Launch locally (Render will use Gunicorn instead) ===
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
