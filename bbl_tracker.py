@@ -1,59 +1,44 @@
 import os
 import csv
 import tempfile
-import subprocess
 from flask import Flask, request, jsonify
 from pytube import YouTube
-from ultralytics import YOLO
-
-# === Import YOLO layers (needed for safe model loading) ===
-from ultralytics.nn.tasks import DetectionModel
-from ultralytics.nn.modules import (
-    Conv, C2f, C3, Bottleneck, SPPF, Detect, C2, C3Ghost, C3TR
-)
-from torch.nn.modules.container import Sequential
-
 import torch
 import cv2
 import ffmpeg
 
+from ultralytics import YOLO
+from ultralytics.nn.tasks import DetectionModel
 
-# === Allowlist YOLO components so PyTorch can load fullcourt.pt ===
-torch.serialization.add_safe_globals([
-    DetectionModel,
-    Sequential,
-    Conv,
-    C2f,
-    C3,
-    Bottleneck,
-    SPPF,
-    Detect,
-    C2,
-    C3Ghost,
-    C3TR
-])
-
-
-# === App and model loading ===
-app = Flask(__name__)
+# ========================================
+# FORCE PYTORCH TO LOAD FULL MODEL
+# ========================================
 
 MODEL_PATH = "fullcourt.pt"
+
+# Load checkpoint manually
+ckpt = torch.load(MODEL_PATH, map_location="cpu", weights_only=False)
+
+# Build YOLO model from checkpoint's model args
+model = DetectionModel(ckpt["model"].yaml).load(ckpt["model"].state_dict())
+model.eval()
+
+# Wrap into YOLO class so track() still works
+model = YOLO(model)
+
+
+app = Flask(__name__)
 FPS = 30
 
-# Load YOLO model (now allowed)
-model = YOLO(MODEL_PATH)
 
-
-# === Download YouTube video ===
 def download_youtube(url):
     yt = YouTube(url)
-    stream = yt.streams.filter(file_extension='mp4').first()
+    stream = yt.streams.filter(file_extension="mp4").first()
     temp_video = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
     stream.download(filename=temp_video.name)
     return temp_video.name
 
 
-# === Run ball tracking on the local video ===
 def extract_ball_positions(video_file):
     output_csv = tempfile.NamedTemporaryFile(delete=False, suffix=".csv").name
 
@@ -62,7 +47,7 @@ def extract_ball_positions(video_file):
         save=False,
         stream=True,
         tracker="bytetrack.yaml",
-        verbose=False
+        verbose=False,
     )
 
     last_x, last_y = None, None
@@ -91,11 +76,9 @@ def extract_ball_positions(video_file):
                 continue
 
             chosen = min(candidates, key=lambda c: c["area"])
-
             cx = (chosen["x1"] + chosen["x2"]) / 2
             cy = (chosen["y1"] + chosen["y2"]) / 2
 
-            # Smooth sudden jumps
             if last_x is not None:
                 if abs(cx - last_x) > 150 or abs(cy - last_y) > 150:
                     cx, cy = last_x, last_y
@@ -107,7 +90,6 @@ def extract_ball_positions(video_file):
     return output_csv
 
 
-# === API endpoint ===
 @app.route("/run", methods=["POST"])
 def run():
     data = request.json
@@ -119,19 +101,13 @@ def run():
     video_path = download_youtube(youtube_url)
     csv_path = extract_ball_positions(video_path)
 
-    return jsonify({
-        "status": "success",
-        "csv_path": csv_path
-    })
+    return jsonify({"status": "success", "csv_path": csv_path})
 
 
-# === Health check ===
 @app.route("/", methods=["GET"])
 def health():
     return jsonify({"status": "running"})
 
 
-# === Launch locally (Render will use Gunicorn instead) ===
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-
